@@ -289,7 +289,9 @@ main > section {
   box-shadow: var(--shadow-sm);
 }
 
-[data-theme="dark"] .btn:hover,
+[data-theme="dark"] .btn:hover {
+  box-shadow: 5px 5px 0 rgba(107, 140, 255, 0.25);
+}
 @media (prefers-color-scheme: dark) {
   .btn:hover {
     box-shadow: 5px 5px 0 rgba(107, 140, 255, 0.25);
@@ -391,7 +393,12 @@ main > section {
   box-shadow: 1px 1px 0 rgba(31, 31, 35, 0.18);
 }
 
-[data-theme="dark"] .social:hover,
+[data-theme="dark"] .social:hover {
+  box-shadow: 3px 3px 0 rgba(107, 140, 255, 0.25);
+}
+[data-theme="dark"] .social:active {
+  box-shadow: 1px 1px 0 rgba(107, 140, 255, 0.25);
+}
 @media (prefers-color-scheme: dark) {
   .social:hover {
     box-shadow: 3px 3px 0 rgba(107, 140, 255, 0.25);
@@ -535,7 +542,9 @@ main > section {
   color: var(--accent-strong);
 }
 
-[data-theme="dark"] .theme-toggle:hover,
+[data-theme="dark"] .theme-toggle:hover {
+  box-shadow: 3px 3px 0 rgba(107, 140, 255, 0.25);
+}
 @media (prefers-color-scheme: dark) {
   .theme-toggle:hover {
     box-shadow: 3px 3px 0 rgba(107, 140, 255, 0.25);
@@ -547,7 +556,9 @@ main > section {
   box-shadow: 1px 1px 0 rgba(31, 31, 35, 0.18);
 }
 
-[data-theme="dark"] .theme-toggle:active,
+[data-theme="dark"] .theme-toggle:active {
+  box-shadow: 1px 1px 0 rgba(107, 140, 255, 0.25);
+}
 @media (prefers-color-scheme: dark) {
   .theme-toggle:active {
     box-shadow: 1px 1px 0 rgba(107, 140, 255, 0.25);
@@ -675,7 +686,9 @@ body.is-entered .bg-grain {
   box-shadow: 3px 3px 0 rgba(31, 31, 35, 0.18);
   color: var(--accent-strong);
 }
-[data-theme="dark"] .audio-toggle:hover,
+[data-theme="dark"] .audio-toggle:hover {
+  box-shadow: 3px 3px 0 rgba(107, 140, 255, 0.25);
+}
 @media (prefers-color-scheme: dark) {
   .audio-toggle:hover {
     box-shadow: 3px 3px 0 rgba(107, 140, 255, 0.25);
@@ -685,7 +698,9 @@ body.is-entered .bg-grain {
   transform: translate(1px, 1px);
   box-shadow: 1px 1px 0 rgba(31, 31, 35, 0.18);
 }
-[data-theme="dark"] .audio-toggle:active,
+[data-theme="dark"] .audio-toggle:active {
+  box-shadow: 1px 1px 0 rgba(107, 140, 255, 0.25);
+}
 @media (prefers-color-scheme: dark) {
   .audio-toggle:active {
     box-shadow: 1px 1px 0 rgba(107, 140, 255, 0.25);
