@@ -500,8 +500,8 @@ main > section {
   .top-bar {
     min-height: 48px;
   }
-  .theme-toggle,
-  .audio-toggle {
+  .top-bar .theme-toggle,
+  .top-bar .audio-toggle {
     position: static;
     width: 36px;
     height: 36px;
@@ -880,30 +880,59 @@ body.is-entered .bg-grain {
 
 @media (max-width: 560px) {
   .bookshelf {
-    padding: 24px 8px 0;
-    min-height: 160px;
+    flex-direction: column;
+    padding: 16px;
+    min-height: auto;
+    gap: 0;
+    border-bottom: none;
+    box-shadow: none;
   }
   .book {
-    width: 200px;
-    height: 140px;
-    padding-top: 10px;
+    width: 100%;
+    height: auto;
+    padding: 0;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: stretch;
+  }
+  .book:last-child {
+    margin-bottom: 0;
   }
   .book-spine {
-    width: 36px;
-    height: 120px;
-    font-size: 11px;
-    padding: 6px 3px;
+    position: relative;
+    left: auto;
+    bottom: auto;
+    width: 44px;
+    height: auto;
+    min-height: 120px;
   }
   .book-cover {
-    top: 10px;
-    left: 36px;
-    width: 150px;
-    height: 120px;
-    padding: 10px;
+    position: relative;
+    top: auto;
+    left: auto;
+    width: auto;
+    height: auto;
+    flex: 1;
+    padding: 10px 12px;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    border-left: none;
+    border-radius: 0 2px 2px 0;
   }
   .book:hover,
   .book:focus-visible {
-    transform: translateX(20px) translateY(-4px) rotate(-3deg);
+    transform: none;
+  }
+  .book:hover .book-cover,
+  .book:focus-visible .book-cover {
+    opacity: 1;
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+  .book:hover .book-spine,
+  .book:focus-visible .book-spine {
+    box-shadow: var(--shadow-sm);
   }
 }
 
