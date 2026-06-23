@@ -1,450 +1,323 @@
 (() => {
-  /* ---------- year ---------- */
   const yearEl = document.getElementById("year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
-
-  /* ---------- theme toggle ---------- */
-  const STORAGE_KEY = "dyok-theme";
-  const root = document.documentElement;
-  const toggle = document.getElementById("theme-toggle");
-
-  const ICONS = {
-    system: toggle && toggle.querySelector(".theme-icon-system"),
-    light: toggle && toggle.querySelector(".theme-icon-sun"),
-    dark: toggle && toggle.querySelector(".theme-icon-moon"),
+  const POSTS = {
+    "hiding-root-2026": {
+      title: "The Android Cat-and-Mouse Game: Systematically Hiding Root in 2026",
+      date: "June 23, 2026",
+      readTime: "5 min read",
+      tags: ["android", "security"],
+      filePath: "posts/hiding-root-2026.md",
+    }
   };
 
-  const cycle = ["system", "light", "dark"];
-  const titles = { system: "Theme: system", light: "Theme: light", dark: "Theme: dark" };
+  function highlightCode(code, lang) {
+    let escaped = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
-  function applyTheme(theme) {
-    if (theme === "light" || theme === "dark") {
-      root.setAttribute("data-theme", theme);
-    } else {
-      root.removeAttribute("data-theme");
+    if (lang === "sh" || lang === "bash") {
+      // comments starting with #
+      escaped = escaped.replace(/(#.*)/g, '<span class="comment">$1</span>');
+      // commands and keywords
+      const keywords = ["unshare", "mount", "ksu_susfs", "add_sus_path", "add_sus_mount", "add_sus_kstat", "update_sus_kstat"];
+      keywords.forEach(kw => {
+        const regex = new RegExp(`\\b(${kw})\\b`, "g");
+        escaped = escaped.replace(regex, '<span class="keyword">$1</span>');
+      });
+    } else if (lang === "c" || lang === "cpp" || lang === "java" || lang === "c++") {
+      // comments starting with //
+      escaped = escaped.replace(/(\/\/.*)/g, '<span class="comment">$1</span>');
+      // Match raw quotes since the markdown escaping phase preserves literal double quotes.
+      escaped = escaped.replace(/(".*?")/g, '<span class="string">$1</span>');
+      // keywords
+      const keywords = ["int", "char", "if", "return", "strcmp", "strcpy", "strlen", "const"];
+      keywords.forEach(kw => {
+        const regex = new RegExp(`\\b(${kw})\\b`, "g");
+        escaped = escaped.replace(regex, '<span class="keyword">$1</span>');
+      });
+      // numbers
+      escaped = escaped.replace(/\b(\d+)\b/g, '<span class="number">$1</span>');
     }
-
-    if (toggle) {
-      toggle.setAttribute("title", titles[theme]);
-      toggle.setAttribute(
-        "aria-label",
-        `Cycle theme. Current: ${theme}. Click to switch.`
-      );
-      for (const key of cycle) {
-        if (ICONS[key]) ICONS[key].style.display = key === theme ? "" : "none";
-      }
-    }
+    return escaped;
   }
 
-  let current = "system";
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "light" || saved === "dark" || saved === "system") {
-      current = saved;
-    }
-  } catch (_) {}
+  function parseMarkdown(md) {
+    let raw = md.replace(/\r\n/g, "\n");
 
-  applyTheme(current);
-
-  if (toggle) {
-    toggle.addEventListener("click", () => {
-      const idx = cycle.indexOf(current);
-      current = cycle[(idx + 1) % cycle.length];
-      try {
-        localStorage.setItem(STORAGE_KEY, current);
-      } catch (_) {}
-      applyTheme(current);
+    // Protect code blocks from HTML escaping
+    const codeBlocks = [];
+    raw = raw.replace(/```(\w*)\n([\s\S]*?)\n```/g, (match, lang, code) => {
+      const id = `__CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push({ lang, code });
+      return id;
     });
-  }
 
-  /* ---------- parallax on halftone ---------- */
-  function initParallax() {
-    const grain = document.querySelector(".bg-grain");
-    if (!grain) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Escape raw characters for basic security
+    let html = raw
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
-    let rafId = null;
-    let idleTimer = null;
-    let targetX = 0;
-    let targetY = 0;
-    const RANGE = 12;
+    // Headings
+    html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
+    html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
+    html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
 
-    function applyTransform(x, y) {
-      grain.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    }
+    // Horizontal rule
+    html = html.replace(/^---$/gim, "<hr>");
 
-    function onMove(e) {
-      clearTimeout(idleTimer);
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      targetX = ((e.clientX - cx) / cx) * RANGE;
-      targetY = ((e.clientY - cy) / cy) * RANGE;
+    // Blockquotes
+    html = html.replace(/^\s*>\s*(.*$)/gim, "<blockquote><p>$1</p></blockquote>");
 
-      if (!rafId) {
-        rafId = requestAnimationFrame(() => {
-          rafId = null;
-          applyTransform(targetX, targetY);
-        });
+    // Bold (**text**)
+    html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+    // Italics (*text*)
+    html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+
+    // Links [text](url)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    // Inline Code
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    // Unordered and ordered lists processing
+    const lines = html.split("\n");
+    let inUl = false;
+    let inOl = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith("* ") || line.startsWith("- ")) {
+        let content = lines[i].replace(/^\s*[\*\-]\s+/, "");
+        if (inOl) {
+          lines[i - 1] = lines[i - 1] + "\n</ol>";
+          inOl = false;
+        }
+        if (!inUl) {
+          lines[i] = "<ul>\n<li>" + content + "</li>";
+          inUl = true;
+        } else {
+          lines[i] = "<li>" + content + "</li>";
+        }
+      } else if (/^\d+\.\s+/.test(line)) {
+        let content = lines[i].replace(/^\s*\d+\.\s+/, "");
+        if (inUl) {
+          lines[i - 1] = lines[i - 1] + "\n</ul>";
+          inUl = false;
+        }
+        if (!inOl) {
+          lines[i] = "<ol>\n<li>" + content + "</li>";
+          inOl = true;
+        } else {
+          lines[i] = "<li>" + content + "</li>";
+        }
+      } else {
+        if (inUl) {
+          lines[i - 1] = lines[i - 1] + "\n</ul>";
+          inUl = false;
+        }
+        if (inOl) {
+          lines[i - 1] = lines[i - 1] + "\n</ol>";
+          inOl = false;
+        }
       }
-
-      idleTimer = setTimeout(() => {
-        targetX = 0;
-        targetY = 0;
-        applyTransform(0, 0);
-      }, 2000);
     }
+    // Close any active list elements remaining at the end of the markdown payload.
+    if (inUl) {
+      lines[lines.length - 1] = lines[lines.length - 1] + "\n</ul>";
+    }
+    if (inOl) {
+      lines[lines.length - 1] = lines[lines.length - 1] + "\n</ol>";
+    }
+    html = lines.join("\n");
 
-    document.addEventListener("mousemove", onMove, { passive: true });
+    // Restore protected code blocks with custom highlighting
+    codeBlocks.forEach((block, index) => {
+      const placeholder = `__CODE_BLOCK_${index}__`;
+      const highlighted = highlightCode(block.code, block.lang);
+      html = html.replace(placeholder, `<pre><code class="language-${block.lang}">${highlighted}</code></pre>`);
+    });
+
+    // Paragraph blocks grouping
+    const blocks = html.split(/\n{2,}/);
+    for (let i = 0; i < blocks.length; i++) {
+      const trimmed = blocks[i].trim();
+      if (!trimmed) continue;
+
+      if (!trimmed.startsWith("<h") &&
+          !trimmed.startsWith("<pre") &&
+          !trimmed.startsWith("<ul") &&
+          !trimmed.startsWith("<ol") &&
+          !trimmed.startsWith("<li") &&
+          !trimmed.startsWith("<blockquote") &&
+          !trimmed.startsWith("<hr") &&
+          !trimmed.startsWith("<div")) {
+        blocks[i] = `<p>${trimmed.replace(/\n/g, "<br>")}</p>`;
+      }
+    }
+    html = blocks.join("\n\n");
+
+    return html;
   }
 
-  initParallax();
+  const feedView = document.getElementById("feed-view");
+  const readerView = document.getElementById("reader-view");
+  const readerContent = document.getElementById("reader-content");
+  
+  const readerTitle = document.getElementById("reader-title");
+  const readerDate = document.getElementById("reader-date");
+  const readerReadTime = document.getElementById("reader-readtime");
+  const readerTags = document.getElementById("reader-tags");
+  
+  const progressContainer = document.getElementById("progress-container");
+  const progressBar = document.getElementById("progress-bar");
 
-  /* ---------- enter overlay + background audio ---------- */
-  /* repo data — single source of truth for the shelf section */
-  const REPOS = [
-    {
-      name: "SkiaVK",
-      desc: "forces skia vulkan ui rendering on android",
-      url: "https://github.com/dyokism/SkiaVK",
-      color: "#2c5cff",
-    },
-    {
-      name: "DexForge",
-      desc: "smart art/dalvik cache optimization module",
-      url: "https://github.com/dyokism/DexForge",
-      color: "#6b8cff",
-    },
-    {
-      name: "s23-tweaks",
-      desc: "safe sd8g2 performance tweaks for the galaxy s23, with logging",
-      url: "https://github.com/dyokism/S23-Tweaks",
-      color: "#1a3fd4",
-    },
-  ];
+  function showFeed() {
+    readerView.style.display = "none";
+    feedView.style.display = "block";
+    progressContainer.style.display = "none";
+    progressBar.style.width = "0%";
+    document.title = "dyok";
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
 
-  function initEnterOverlay() {
-    const overlay = document.getElementById("enter-overlay");
-    const audio = document.getElementById("bg-audio");
-    const audioToggle = document.getElementById("audio-toggle");
-    if (!overlay || !audio) return;
-
-    const ENTERED_KEY = "dyok-entered";
-
-    let hasEnteredBefore = false;
-    try {
-      hasEnteredBefore = localStorage.getItem(ENTERED_KEY) === "1";
-    } catch (_) {}
-
-    let played = false;
-    function firstPlay() {
-      if (played) return;
-      played = true;
-      audio.play().catch((err) => console.warn("audio play blocked:", err));
-      if (audioToggle) audioToggle.hidden = false;
-    }
-
-    if (hasEnteredBefore) {
-      // Returning visitor: no overlay, no blur, but arm a one-shot
-      // first-click-anywhere listener to satisfy the browser's autoplay rule.
-      document.body.classList.add("is-entered");
-      overlay.classList.add("is-leaving");
-      document.addEventListener("click", firstPlay, { once: true, capture: true });
-      document.addEventListener("keydown", firstPlay, { once: true, capture: true });
+  async function showPost(postId) {
+    const post = POSTS[postId];
+    if (!post) {
+      showFeed();
       return;
     }
 
-    // First visit: dramatic overlay, explicit click required.
-    document.body.classList.add("is-entering");
+    // Set title and loading text
+    document.title = `${post.title} — dyok`;
+    readerTitle.textContent = post.title;
+    readerDate.textContent = post.date;
+    readerReadTime.textContent = post.readTime;
+    
+    // Set tags
+    readerTags.innerHTML = "";
+    post.tags.forEach(tag => {
+      const span = document.createElement("span");
+      span.className = "tag";
+      span.textContent = tag;
+      readerTags.appendChild(span);
+    });
 
-    function dismissOverlay() {
-      overlay.removeEventListener("click", dismissOverlay);
-      overlay.removeEventListener("keydown", onKey);
-      overlay.classList.add("is-leaving");
-      document.body.classList.remove("is-entering");
-      document.body.classList.add("is-entered");
-      try {
-        localStorage.setItem(ENTERED_KEY, "1");
-      } catch (_) {}
-      firstPlay();
+    readerContent.innerHTML = '<p class="loading">// fetching post content...</p>';
+    feedView.style.display = "none";
+    readerView.style.display = "block";
+    progressContainer.style.display = "block";
+    window.scrollTo({ top: 0, behavior: "instant" });
+
+    try {
+      const res = await fetch(post.filePath);
+      if (!res.ok) throw new Error("File not found");
+      const mdText = await res.text();
+      
+      // Strip the primary heading from markdown as it is already rendered in the reader header.
+      const cleanMd = mdText.trim().startsWith("# ") ? mdText.substring(mdText.indexOf("\n")).trim() : mdText;
+
+      readerContent.innerHTML = parseMarkdown(cleanMd);
+    } catch (err) {
+      readerContent.innerHTML = `<p class="error">// failed to load post: ${err.message}</p>`;
     }
+  }
 
-    function onKey(e) {
+  function handleRoute() {
+    const hash = window.location.hash;
+    const postMatch = hash.match(/^#post\/(.+)$/);
+    if (postMatch) {
+      showPost(postMatch[1]);
+    } else {
+      showFeed();
+    }
+  }
+
+  // Bind clicks on real post cards
+  document.querySelectorAll(".post-card:not(.placeholder)").forEach(card => {
+    card.addEventListener("click", () => {
+      const postId = card.getAttribute("data-post-id");
+      if (postId) {
+        window.location.hash = `post/${postId}`;
+      }
+    });
+
+    card.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        dismissOverlay();
-      }
-    }
-
-    overlay.addEventListener("click", dismissOverlay);
-    overlay.addEventListener("keydown", onKey);
-  }
-
-  initEnterOverlay();
-
-  function initAudioToggle() {
-    const btn = document.getElementById("audio-toggle");
-    const audio = document.getElementById("bg-audio");
-    if (!btn || !audio) return;
-
-    const MUTED_KEY = "dyok-audio-muted";
-    const iconOn = btn.querySelector(".audio-icon-on");
-    const iconOff = btn.querySelector(".audio-icon-off");
-
-    let muted = false;
-    try {
-      muted = localStorage.getItem(MUTED_KEY) === "1";
-    } catch (_) {}
-    audio.muted = muted;
-
-    function render() {
-      const isMuted = audio.muted;
-      if (iconOn) iconOn.style.display = isMuted ? "none" : "";
-      if (iconOff) iconOff.style.display = isMuted ? "" : "none";
-      btn.setAttribute("aria-label", isMuted ? "Unmute audio" : "Mute audio");
-      btn.setAttribute("title", isMuted ? "Unmute" : "Mute");
-    }
-    render();
-
-    function syncPlayingState() {
-      const playing = !audio.paused && !audio.muted && audio.currentTime > 0;
-      btn.classList.toggle("is-playing", playing);
-    }
-
-    audio.addEventListener("play", syncPlayingState);
-    audio.addEventListener("pause", syncPlayingState);
-    audio.addEventListener("ended", syncPlayingState);
-    audio.addEventListener("volumechange", syncPlayingState);
-    audio.addEventListener("seeked", syncPlayingState);
-    syncPlayingState();
-
-    btn.addEventListener("click", () => {
-      audio.muted = !audio.muted;
-      try {
-        localStorage.setItem(MUTED_KEY, audio.muted ? "1" : "0");
-      } catch (_) {}
-      render();
-      syncPlayingState();
-    });
-  }
-
-  initAudioToggle();
-
-  /* ---------- repo shelf ---------- */
-  function initRepoShelf() {
-    const root = document.getElementById("repo-list");
-    if (!root) return;
-
-    const list = Array.isArray(REPOS) ? REPOS : [];
-    if (!list.length) return;
-
-    const frag = document.createDocumentFragment();
-    for (const r of list) {
-      const a = document.createElement("a");
-      a.className = "book";
-      a.href = r.url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.setAttribute("role", "listitem");
-      a.setAttribute("aria-label", `${r.name} — ${r.desc}`);
-      if (r.color) a.style.setProperty("--spine-color", r.color);
-      a.innerHTML =
-        '<span class="book-spine"><span class="book-spine-title">' +
-        r.name +
-        '</span></span><span class="book-cover">' +
-        '<span class="book-cover-name">' + r.name + '</span>' +
-        '<span class="book-cover-desc">' + r.desc + '</span>' +
-        '<span class="book-cover-stats" data-repo="' + r.name + '">' +
-        '<span class="stat stat-loading">…</span>' +
-        '</span>' +
-        '<span class="book-cover-cta">view on github ↗</span></span>';
-      frag.appendChild(a);
-    }
-    root.appendChild(frag);
-
-    fetchRepoStats();
-  }
-
-  function fetchRepoStats() {
-    const STORAGE_KEY = "dyok-repo-stats";
-    const TTL_MS = 60 * 60 * 1000; // 1 hour
-
-    function parseOwner(url) {
-      try {
-        const m = String(url).match(/github\.com\/([^/]+)\/([^/]+)/);
-        return m ? { owner: m[1], repo: m[2] } : null;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    function loadCache() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return null;
-        const data = JSON.parse(raw);
-        if (!data || !data.ts || Date.now() - data.ts > TTL_MS) return null;
-        return data;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    function saveCache(data) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now(), data }));
-      } catch (_) {}
-    }
-
-    function renderStats(repoName, stats) {
-      const el = document.querySelector(
-        '.book-cover-stats[data-repo="' + repoName + '"]'
-      );
-      if (!el) return;
-      if (!stats) {
-        el.innerHTML = '<span class="stat">—</span>';
-        return;
-      }
-      const stars = stats.stargazers_count != null ? "★ " + stats.stargazers_count : "";
-      const forks = stats.forks_count != null ? "⑂ " + stats.forks_count : "";
-      const lang = stats.language ? "• " + escapeHtml(stats.language) : "";
-      const parts = [stars, forks, lang].filter(Boolean);
-      el.innerHTML = parts.length
-        ? parts.map((p) => '<span class="stat">' + p + "</span>").join("")
-        : '<span class="stat">—</span>';
-    }
-
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      }[c]));
-    }
-
-    const cache = loadCache();
-    if (cache) {
-      for (const r of REPOS) {
-        const key = r.name;
-        renderStats(key, cache.data[key] || null);
-      }
-    }
-
-    // Fetch each repo in parallel; don't block render.
-    for (const r of REPOS) {
-      const parsed = parseOwner(r.url);
-      if (!parsed) {
-        renderStats(r.name, null);
-        continue;
-      }
-      const apiUrl =
-        "https://api.github.com/repos/" + parsed.owner + "/" + parsed.repo;
-      fetch(apiUrl, { headers: { Accept: "application/vnd.github+json" } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!data) {
-            renderStats(r.name, null);
-            return;
-          }
-          const next = Object.assign({}, cache && cache.data);
-          next[r.name] = {
-            stargazers_count: data.stargazers_count,
-            forks_count: data.forks_count,
-            language: data.language,
-          };
-          saveCache(next);
-          // Re-render only if no cache existed (otherwise the cached render is already correct).
-          if (!cache) renderStats(r.name, next[r.name]);
-        })
-        .catch(() => renderStats(r.name, null));
-    }
-  }
-
-  initRepoShelf();
-
-  /* ---------- title char reveal ---------- */
-  function initTitleReveal() {
-    const word = document.querySelector(".title-word");
-    if (!word) return;
-    const text = (word.textContent || "").trim();
-    if (!text) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    word.textContent = "";
-    const chars = Array.from(text);
-    chars.forEach((ch, i) => {
-      const span = document.createElement("span");
-      span.className = "title-char";
-      span.textContent = ch;
-      span.style.animationDelay = (60 + i * 70) + "ms";
-      word.appendChild(span);
-    });
-  }
-
-  initTitleReveal();
-
-  /* ---------- scroll reveal ---------- */
-  function initScrollReveal() {
-    const els = document.querySelectorAll(".reveal");
-    if (!els.length) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      els.forEach((el) => el.classList.add("is-visible"));
-      return;
-    }
-
-    if (!("IntersectionObserver" in window)) {
-      els.forEach((el) => el.classList.add("is-visible"));
-      return;
-    }
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            io.unobserve(entry.target);
-          }
+        const postId = card.getAttribute("data-post-id");
+        if (postId) {
+          window.location.hash = `post/${postId}`;
         }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
-    );
-
-    els.forEach((el) => io.observe(el));
-  }
-
-  initScrollReveal();
-
-  /* ---------- typed-in lede ---------- */
-  function initTypedLede() {
-    const textSpan = document.querySelector(".lede-text");
-    const cursorSpan = document.querySelector(".lede-cursor");
-    if (!textSpan) return;
-
-    const fullText = textSpan.textContent || "";
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      textSpan.textContent = fullText;
-      if (cursorSpan) cursorSpan.classList.add("done");
-      return;
-    }
-
-    textSpan.textContent = "";
-    let idx = 0;
-
-    function typeChar() {
-      if (idx >= fullText.length) {
-        if (cursorSpan) cursorSpan.classList.add("done");
-        return;
       }
-      textSpan.textContent += fullText[idx++];
-      const delay = 35 + Math.random() * 35;
-      setTimeout(typeChar, delay);
-    }
+    });
+  });
 
-    typeChar();
+  const readerBack = document.getElementById("reader-back");
+  if (readerBack) {
+    readerBack.addEventListener("click", () => {
+      window.location.hash = "";
+    });
   }
 
-  initTypedLede();
+  window.addEventListener("hashchange", handleRoute);
+  handleRoute();
+
+  window.addEventListener("scroll", () => {
+    if (readerView.style.display !== "none") {
+      const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      if (height > 0) {
+        const scrolled = (winScroll / height) * 100;
+        progressBar.style.width = `${scrolled}%`;
+      }
+    }
+  });
+
+  const aboutBtn = document.getElementById("nav-about");
+  const aboutModal = document.getElementById("about-modal");
+  const modalClose = document.getElementById("modal-close");
+
+  function openAboutModal() {
+    if (aboutModal) {
+      aboutModal.showModal();
+      // Stagger class toggle to let the browser register the dialog layout for scale/fade transition.
+      requestAnimationFrame(() => {
+        aboutModal.classList.add("is-open");
+      });
+    }
+  }
+
+  function closeAboutModal() {
+    if (aboutModal) {
+      aboutModal.classList.remove("is-open");
+      // Wait for transition before closing dialog to allow the fade-out to finish.
+      setTimeout(() => {
+        aboutModal.close();
+      }, 250);
+    }
+  }
+
+  if (aboutBtn) {
+    aboutBtn.addEventListener("click", openAboutModal);
+  }
+
+  if (modalClose) {
+    modalClose.addEventListener("click", closeAboutModal);
+  }
+
+  if (aboutModal) {
+    aboutModal.addEventListener("click", (e) => {
+      if (e.target === aboutModal) {
+        closeAboutModal();
+      }
+    });
+
+    aboutModal.addEventListener("close", () => {
+      aboutModal.classList.remove("is-open");
+    });
+  }
 })();
